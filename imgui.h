@@ -2094,6 +2094,13 @@ struct ImGuiIO
     float       MouseDragThreshold;             // = 6.0f           // Distance threshold before considering we are dragging.
     float       KeyRepeatDelay;                 // = 0.275f         // When holding a key/button, time before it starts repeating, in seconds (for buttons in Repeat mode, etc.).
     float       KeyRepeatRate;                  // = 0.050f         // When holding a key/button, rate at which it repeats, in seconds.
+    
+    // Scrolling configuration
+    float       MouseWheelFriction;             // = 3.2f           // How much should scrolling be eased.
+    float       ScrollScale;                    // = 0.02f          // Scale mouse scroll speed.
+    float       ScrollSpeedMin;                 // = 0.0001f        // Minimum scrolling speed for ImGuiWindow::ScrollSpeed.
+    float       ScrollSpeedMax;                 // = 15.0f          // Maximum scrolling speed for ImGuiWindow::ScrollSpeed.
+    bool        ScrollKeepForce;                // = true           // Whether to sum the scrolling speed on subsequent frames when using the mouse wheel.
 
     //------------------------------------------------------------------
     // Debug options
