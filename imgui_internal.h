@@ -2829,6 +2829,8 @@ struct IMGUI_API ImGuiWindow
     int                     MemoryDrawListVtxCapacity;
     bool                    MemoryCompacted;                    // Set when window extraneous data have been garbage collected
 
+    ImVec2 ScrollSpeed;                                         // Holds velocity for smooth scrolling
+
     // Docking
     bool                    DockIsActive        :1;             // When docking artifacts are actually visible. When this is set, DockNode is guaranteed to be != NULL. ~~ (DockNode != NULL) && (DockNode->Windows.Size > 1).
     bool                    DockNodeIsVisible   :1;

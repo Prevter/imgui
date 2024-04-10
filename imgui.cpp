@@ -1132,6 +1132,7 @@ static void             UpdateDebugToolFlashStyleColor();
 static void             UpdateKeyboardInputs();
 static void             UpdateMouseInputs();
 static void             UpdateMouseWheel();
+static void             UpdateSmoothScroll(ImGuiWindow* window);
 static void             UpdateKeyRoutingTable(ImGuiKeyRoutingTable* rt);
 
 // Misc
@@ -1358,6 +1359,12 @@ ImGuiIO::ImGuiIO()
     MouseDragThreshold = 6.0f;
     KeyRepeatDelay = 0.275f;
     KeyRepeatRate = 0.050f;
+
+    MouseWheelFriction = 3.2f;
+    ScrollScale = 0.02f;
+    ScrollSpeedMin = 0.0001f;
+    ScrollSpeedMax = 15.0f;
+    ScrollKeepForce = true;
 
     // Platform Functions
     // Note: Initialize() will setup default clipboard/ime handlers.
@@ -4970,6 +4977,8 @@ void ImGui::NewFrame()
         // Garbage collect transient buffers of recently unused windows
         if (!window->WasActive && !window->MemoryCompacted && window->LastTimeActive < memory_compact_start_time)
             GcCompactTransientWindowBuffers(window);
+
+        UpdateSmoothScroll(window);
     }
 
     // Garbage collect transient buffers of recently unused tables
@@ -9806,7 +9815,12 @@ void ImGui::UpdateMouseWheel()
                 LockWheelingWindow(window, wheel.x);
                 float max_step = window->InnerRect.GetWidth() * 0.67f;
                 float scroll_step = ImTrunc(ImMin(2 * window->CalcFontSize(), max_step));
-                SetScrollX(window, window->Scroll.x - wheel.x * scroll_step);
+                // Use g.ScrollSpeed instead of setting scroll directly
+                float scroll_amount = wheel.x * scroll_step * g.IO.ScrollScale;
+                if (g.IO.ScrollKeepForce)
+                    window->ScrollSpeed.x += scroll_amount;
+                else
+                    window->ScrollSpeed.x = scroll_amount;
                 g.WheelingWindowScrolledFrame = g.FrameCount;
             }
             if (do_scroll[ImGuiAxis_Y])
@@ -9814,10 +9828,58 @@ void ImGui::UpdateMouseWheel()
                 LockWheelingWindow(window, wheel.y);
                 float max_step = window->InnerRect.GetHeight() * 0.67f;
                 float scroll_step = ImTrunc(ImMin(5 * window->CalcFontSize(), max_step));
-                SetScrollY(window, window->Scroll.y - wheel.y * scroll_step);
+                // Use g.ScrollSpeed instead of setting scroll directly
+                float scroll_amount = wheel.y * scroll_step * g.IO.ScrollScale;
+                if (g.IO.ScrollKeepForce)
+                    window->ScrollSpeed.y += scroll_amount;
+                else
+                    window->ScrollSpeed.y = scroll_amount;
                 g.WheelingWindowScrolledFrame = g.FrameCount;
             }
         }
+}
+
+void ImGui::UpdateSmoothScroll(ImGuiWindow* window)
+{
+    ImGuiContext& g = *GImGui;
+    if (g.ActiveId != 0 || g.HoveredId != 0)
+        return;
+
+    // Limit to max speed
+    if (fabs(window->ScrollSpeed.x) > g.IO.ScrollSpeedMax)
+        window->ScrollSpeed.x = ImSign(window->ScrollSpeed.x) * g.IO.ScrollSpeedMax;
+
+    if (fabs(window->ScrollSpeed.y) > g.IO.ScrollSpeedMax)
+        window->ScrollSpeed.y = ImSign(window->ScrollSpeed.y) * g.IO.ScrollSpeedMax;
+
+    // Update scroll every frame
+    if (!(window->Flags & ImGuiWindowFlags_NoScrollWithMouse) && !(window->Flags & ImGuiWindowFlags_NoMouseInputs))
+    {
+        bool do_scroll[2] = {
+            window->ScrollSpeed.x != 0.0f && window->ScrollMax.x != 0.0f,
+            window->ScrollSpeed.y != 0.0f && window->ScrollMax.y != 0.0f
+        };
+
+        if (do_scroll[0]) {
+            // LockWheelingWindow(window, window->ScrollSpeed.x);
+            SetScrollX(window, window->Scroll.x - window->ScrollSpeed.x);
+        }
+        if (do_scroll[1]) {
+            // LockWheelingWindow(window, window->ScrollSpeed.y);
+            SetScrollY(window, window->Scroll.y - window->ScrollSpeed.y);
+        }
+    }
+
+    // Apply friction to scroll speed (with delta time)
+    float dumpingFactor = g.IO.MouseWheelFriction * g.IO.DeltaTime;
+    window->ScrollSpeed *= 1.0f - dumpingFactor;
+
+    // Reset to zero when really close to zero
+    if (fabs(window->ScrollSpeed.x) < g.IO.ScrollSpeedMin)
+    window->ScrollSpeed.x = 0.0f;
+
+    if (fabs(window->ScrollSpeed.y) < g.IO.ScrollSpeedMin)
+    window->ScrollSpeed.y = 0.0f;
 }
 
 void ImGui::SetNextFrameWantCaptureKeyboard(bool want_capture_keyboard)
